@@ -3,9 +3,25 @@
 #include <QDebug>
 #include <cmath>
 
-GamepadInjector::GamepadInjector() : injector(nullptr)
+GamepadInjector::GamepadInjector()
+	: GamepadInjector(ControllerType::Xbox360)
 {
-	qDebug() << "GamepadInjector constructor called";
+}
+
+GamepadInjector::GamepadInjector(ControllerType type)
+	: controllerType(type), injector(nullptr)
+{
+	ControllerInfo info = getControllerInfo(type);
+	qDebug() << "GamepadInjector constructor called (Windows) - requested type:" << info.name;
+
+	// NOTE: Windows WinRT InputInjector API does not support custom VID/PID.
+	// All injected gamepads appear as generic Xbox-style controllers.
+	// For true VID/PID emulation on Windows, ViGEmBus would be required.
+	if (type != ControllerType::Xbox360 && type != ControllerType::Generic)
+	{
+		qWarning() << "Windows InputInjector only supports Xbox-style controllers."
+				   << "Requested type" << info.name << "will appear as Xbox controller to games.";
+	}
 
 	// Initialize gamepadState with default values
 	gamepadState = InjectedInputGamepadInfo{};

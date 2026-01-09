@@ -3,7 +3,7 @@
  * @brief Gamepad simulation/injection for Linux using uinput.
  * @details
  * Reference: [The Linux kernel documentation](https://www.kernel.org/doc/html/v6.0/input/gamepad.html)
- * 
+ *
  */
 
 #include "../gamepadSim.hpp"
@@ -15,9 +15,31 @@
 #include <unistd.h>
 
 GamepadInjector::GamepadInjector()
-	: dev(nullptr, libevdev_free), uidev(nullptr, libevdev_uinput_destroy), fd(-1)
+	: GamepadInjector(ControllerType::Xbox360)
 {
-	qDebug() << "GamepadInjector constructor called (Linux)";
+}
+
+GamepadInjector::GamepadInjector(ControllerType type)
+	: controllerType(type), dev(nullptr, libevdev_free), uidev(nullptr, libevdev_uinput_destroy),
+	  fd(-1)
+{
+	ControllerInfo info = getControllerInfo(type);
+	initDevice(info.vendorId, info.productId, (std::string("Virtual ") + info.name).c_str());
+}
+
+GamepadInjector::GamepadInjector(uint16_t vendorId, uint16_t productId, const char *deviceName)
+	: controllerType(ControllerType::Generic), dev(nullptr, libevdev_free),
+	  uidev(nullptr, libevdev_uinput_destroy), fd(-1)
+{
+	initDevice(vendorId, productId, deviceName);
+}
+
+void GamepadInjector::initDevice(uint16_t vendorId, uint16_t productId, const char *deviceName)
+{
+	qDebug() << "GamepadInjector constructor called (Linux) - emulating" << deviceName
+			 << QString("(VID: 0x%1, PID: 0x%2)")
+					.arg(vendorId, 4, 16, QChar('0'))
+					.arg(productId, 4, 16, QChar('0'));
 
 	// Initialize button states
 	memset(buttonStates, false, sizeof(buttonStates));
@@ -31,11 +53,11 @@ GamepadInjector::GamepadInjector()
 	}
 	dev.reset(rawDev);
 
-	// Set device properties
-	libevdev_set_name(dev.get(), "Virtual Gamepad PC");
+	// Set device properties based on provided VID/PID
+	libevdev_set_name(dev.get(), deviceName);
 	libevdev_set_id_bustype(dev.get(), BUS_USB);
-	libevdev_set_id_vendor(dev.get(), 0x045e);	// Microsoft vendor ID
-	libevdev_set_id_product(dev.get(), 0x028e); // Xbox 360 controller product ID
+	libevdev_set_id_vendor(dev.get(), vendorId);
+	libevdev_set_id_product(dev.get(), productId);
 	libevdev_set_id_version(dev.get(), 0x0110);
 
 	// Enable gamepad events
@@ -119,7 +141,10 @@ GamepadInjector::GamepadInjector()
 	}
 	uidev.reset(rawUidev);
 
-	qInfo() << "Virtual gamepad created successfully on Linux";
+	qInfo() << "Virtual gamepad created successfully on Linux as" << deviceName
+			<< QString("(VID: 0x%1, PID: 0x%2)")
+				   .arg(vendorId, 4, 16, QChar('0'))
+				   .arg(productId, 4, 16, QChar('0'));
 }
 
 GamepadInjector::~GamepadInjector()

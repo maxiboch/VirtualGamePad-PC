@@ -1,5 +1,7 @@
 #pragma once
 
+#include "controllerTypes.hpp"
+
 #include <QDebug>
 #include <cmath>
 
@@ -28,15 +30,19 @@ using WinRTGamepadButtons = winrt::Windows::Gaming::Input::GamepadButtons;
  * - Windows: Uses the Windows UI Input Injection API (Preview) from WinRT
  *   - Requires Windows 10 or later
  *   - Requires Admin privileges (at least when running unpackaged)
+ *   - NOTE: WinRT InputInjector only supports Xbox-style controllers
  * - Linux: Uses libevdev and uinput for gamepad simulation
  *   - Requires access to /dev/uinput
  *   - User must be in 'input' group or run as root
+ *   - Supports arbitrary VID/PID emulation
  *
  * Not movable or copyable
  */
 class GamepadInjector
 {
   private:
+	ControllerType controllerType;
+
 #ifdef _WIN32
 	InjectedInputGamepadInfo gamepadState;
 	InputInjector injector;
@@ -46,11 +52,43 @@ class GamepadInjector
 	int fd;
 	// Button states for tracking press/release
 	bool buttonStates[BTN_GAMEPAD - BTN_JOYSTICK + 16]; // Enough for all gamepad buttons
+
+	// Internal initialization method shared by constructors
+	void initDevice(uint16_t vendorId, uint16_t productId, const char *deviceName);
 #endif
 
   public:
+	/**
+	 * @brief Create a virtual gamepad with the default type (Xbox 360).
+	 */
 	GamepadInjector();
+
+	/**
+	 * @brief Create a virtual gamepad emulating a specific controller type.
+	 * @param type The type of controller to emulate.
+	 */
+	explicit GamepadInjector(ControllerType type);
+
+#ifdef __linux__
+	/**
+	 * @brief Create a virtual gamepad with custom VID/PID (Linux only).
+	 * @param vendorId USB Vendor ID to emulate.
+	 * @param productId USB Product ID to emulate.
+	 * @param deviceName Name for the virtual device.
+	 *
+	 * Use this to emulate arbitrary controllers from the controller database.
+	 * On Windows, this constructor is not available as WinRT InputInjector
+	 * does not support custom VID/PID.
+	 */
+	GamepadInjector(uint16_t vendorId, uint16_t productId, const char *deviceName = "Virtual Gamepad");
+#endif
+
 	~GamepadInjector();
+
+	/**
+	 * @brief Get the controller type being emulated.
+	 */
+	ControllerType getControllerType() const { return controllerType; }
 
 	// Delete copy and move operations due to platform-specific restrictions
 	GamepadInjector(const GamepadInjector &) = delete;
